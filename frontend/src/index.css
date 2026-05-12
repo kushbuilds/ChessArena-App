@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #262421;
+    color: #BABABA;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #312e2b; }
+  ::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #777; }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-chess-accent hover:bg-green-600 text-white font-semibold py-2 px-4 rounded transition-colors;
+  }
+  .btn-secondary {
+    @apply bg-chess-card hover:bg-chess-hover text-chess-bright font-semibold py-2 px-4 rounded border border-chess-border transition-colors;
+  }
+  .btn-danger {
+    @apply bg-chess-red hover:bg-red-800 text-white font-semibold py-2 px-4 rounded transition-colors;
+  }
+  .card {
+    @apply bg-chess-card rounded-lg border border-chess-border p-4;
+  }
+  .input {
+    @apply bg-chess-bg border border-chess-border rounded px-3 py-2 text-chess-bright w-full focus:outline-none focus:border-chess-accent;
+  }
+}
