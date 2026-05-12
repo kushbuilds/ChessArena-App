@@ -4,15 +4,15 @@ import { Chess } from 'chess.js'
 import { puzzleApi } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { Puzzle } from '../../types'
-import { CheckCircle, XCircle, RefreshCw, Lightbulb, Volume2, VolumeX } from 'lucide-react'
+import { CheckCircle, XCircle, RefreshCw, Lightbulb, Volume2, VolumeX, Flame, Trophy } from 'lucide-react'
 
 type PuzzleState = 'idle' | 'solving' | 'correct' | 'wrong'
 
 const magnusLines = {
   greeting: [
-    "Let's see what we have here.",
-    "Alright, focus on the position.",
-    "Take your time. Find the best move.",
+    "It's time to get solving!",
+    "Let's sharpen your tactics.",
+    "Focus on the position. Find the best move.",
   ],
   hint: [
     "Look for checks and captures first.",
@@ -49,7 +49,7 @@ const tacticHints: Record<string, string[]> = {
   KING_EXTRACTION: ["Drag the king out into the open, even if it costs material."],
   GREEK_GIFT: ["The classic bishop sacrifice on h7. After Bxh7+, the king is exposed."],
   REMOVING_THE_DEFENDER: ["Remove the piece that guards the key square or piece."],
-  X_RAY: ["A piece can control squares through another piece. Think about what happens after it moves."],
+  X_RAY: ["Control squares through other pieces. Think about what happens after it moves."],
   TRAPPED_PIECE: ["The piece has no safe squares. Can you win it?"],
   WINDMILL: ["Repeated discovered checks can win huge material. Look for the windmill pattern."],
   COUNTER_THREAT: ["Instead of defending, create a bigger threat! Make them respond to you."],
@@ -72,17 +72,23 @@ function magnusSpeak(category: keyof typeof magnusLines) {
   const lines = magnusLines[category]
   const text = lines[Math.floor(Math.random() * lines.length)]
   const utterance = new SpeechSynthesisUtterance(text)
-  utterance.rate = 0.95
-  utterance.pitch = 0.9
+  utterance.rate = 0.88
+  utterance.pitch = 0.75
+  utterance.volume = 1.0
   const voices = speechSynthesis.getVoices()
-  const male = voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('male')) ||
-    voices.find(v => v.lang.startsWith('en-GB')) ||
+  const preferred = voices.find(v => v.name.includes('Daniel') && v.lang.startsWith('en')) ||
+    voices.find(v => v.name.includes('Aaron')) ||
+    voices.find(v => v.name.includes('Arthur')) ||
+    voices.find(v => v.lang.startsWith('en-GB') && !v.name.includes('Female')) ||
     voices.find(v => v.lang.startsWith('en'))
-  if (male) utterance.voice = male
+  if (preferred) utterance.voice = preferred
   speechSynthesis.cancel()
   speechSynthesis.speak(utterance)
   return text
 }
+
+// Puzzle path levels
+const TOTAL_LEVELS = 16
 
 export default function Puzzles() {
   const { user } = useAuth()
@@ -91,10 +97,11 @@ export default function Puzzles() {
   const [state, setState] = useState<PuzzleState>('idle')
   const [moves, setMoves] = useState<string[]>([])
   const [selected, setSelected] = useState<string | null>(null)
-  const [category, setCategory] = useState('ALL')
   const [streak, setStreak] = useState(0)
+  const [solved, setSolved] = useState(0)
   const [voiceOn, setVoiceOn] = useState(true)
-  const [magnusMsg, setMagnusMsg] = useState('')
+  const [magnusMsg, setMagnusMsg] = useState("It's time to get solving!")
+  const [puzzleRating, setPuzzleRating] = useState(user?.puzzleRating || 1200)
 
   const loadPuzzle = useCallback(async () => {
     setState('idle')
@@ -130,6 +137,8 @@ export default function Puzzles() {
       if (resp.solved) {
         setState('correct')
         setStreak(s => s + 1)
+        setSolved(s => s + 1)
+        setPuzzleRating(r => r + 8)
         if (voiceOn) setMagnusMsg(magnusSpeak('correct'))
       } else {
         setState('wrong')
@@ -140,126 +149,164 @@ export default function Puzzles() {
     return true
   }
 
-  const categories = ['ALL','FORK','KNIGHT_FORK','PIN','ABSOLUTE_PIN','SKEWER','DISCOVERED_ATTACK',
-    'DOUBLE_CHECK','BACK_RANK','DECOY','ATTRACTION','SMOTHERED_MATE','KING_EXTRACTION',
-    'GREEK_GIFT','REMOVING_THE_DEFENDER','X_RAY','TRAPPED_PIECE','WINDMILL','COUNTER_THREAT',
-    'ZWISCHENZUG','ZUGZWANG','SIMPLIFICATION','STALEMATE','LINEAR_MATE','SACRIFICE',
-    'DEFLECTION','INTERFERENCE','CLEARANCE','OVERLOADING','MATING_NET','ENDGAME','TACTICS']
+  const askHint = () => {
+    const cat = puzzle?.category || ''
+    const lines = tacticHints[cat] || magnusLines.hint
+    const text = lines[Math.floor(Math.random() * lines.length)]
+    if (voiceOn) {
+      const u = new SpeechSynthesisUtterance(text)
+      u.rate = 0.88; u.pitch = 0.75
+      speechSynthesis.cancel(); speechSynthesis.speak(u)
+    }
+    setMagnusMsg(text)
+  }
 
   const customSquareStyles: Record<string, React.CSSProperties> = {}
-  if (selected) customSquareStyles[selected] = { backgroundColor: 'rgba(245,246,130,0.6)' }
+  if (selected) {
+    customSquareStyles[selected] = { backgroundColor: 'rgba(245,246,130,0.6)' }
+    const c = new Chess(chess.fen())
+    const legalMoves = c.moves({ square: selected as any, verbose: true })
+    legalMoves.forEach(m => {
+      if (m.captured) {
+        customSquareStyles[m.to] = { background: 'radial-gradient(circle, rgba(0,0,0,0.3) 85%, transparent 85%)' }
+      } else {
+        customSquareStyles[m.to] = { background: 'radial-gradient(circle, rgba(0,0,0,0.3) 25%, transparent 25%)' }
+      }
+    })
+  }
+
+  const progressPercent = Math.min((solved % 5) / 5 * 100, 100)
 
   return (
-    <div className="min-h-screen p-4">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-chess-bright">Chess Puzzles</h1>
-          <div className="flex items-center gap-3">
-            <span className="text-chess-text text-sm">Streak: <span className="text-chess-accent font-bold">{streak}</span></span>
-            <button onClick={loadPuzzle} className="btn-secondary flex items-center gap-1 text-sm py-1.5">
-              <RefreshCw size={14} /> Next
-            </button>
+    <div className="min-h-screen flex bg-chess-bg">
+      {/* Main board area */}
+      <div className="flex-1 flex items-center justify-center p-4">
+        <div className="w-full max-w-[640px]">
+          {puzzle && (
+            <Chessboard
+              position={chess.fen()}
+              onPieceDrop={(s, t) => { handleMove(s, t); return true }}
+              onSquareClick={(sq) => {
+                if (selected) { handleMove(selected, sq); setSelected(null) }
+                else { const p = chess.get(sq as any); if (p) setSelected(sq) }
+              }}
+              boardOrientation={puzzle ? (new Chess(puzzle.fen).turn() === 'w' ? 'black' : 'white') : 'white'}
+              customDarkSquareStyle={{ backgroundColor: '#779AB6' }}
+              customLightSquareStyle={{ backgroundColor: '#E8EDF9' }}
+              customSquareStyles={customSquareStyles}
+              animationDuration={150}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Right sidebar - puzzle path */}
+      <div className="w-80 bg-chess-card border-l border-chess-border flex flex-col">
+        {/* Header */}
+        <div className="p-4 border-b border-chess-border">
+          <div className="flex items-center gap-2">
+            <span className="bg-chess-accent text-white text-xs font-bold px-2 py-0.5 rounded">{solved}</span>
+            <h2 className="text-xl font-bold text-chess-bright">Puzzles</h2>
           </div>
         </div>
 
-        {/* Category filters */}
-        <div className="flex flex-wrap gap-2 mb-6">
-          {categories.map(c => (
-            <button key={c} onClick={() => setCategory(c)}
-              className={`px-3 py-1 rounded text-xs font-medium ${category === c ? 'bg-chess-accent text-white' : 'bg-chess-card text-chess-text border border-chess-border hover:bg-chess-hover'}`}>
-              {c.replace(/_/g,' ')}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex flex-col md:flex-row gap-6">
-          {/* Board */}
-          <div className="flex-1 max-w-[500px]">
-            {puzzle && (
-              <Chessboard
-                position={chess.fen()}
-                onPieceDrop={(s, t) => { handleMove(s, t); return true }}
-                onSquareClick={(sq) => {
-                  if (selected) { handleMove(selected, sq); setSelected(null) }
-                  else { const p = chess.get(sq as any); if (p) setSelected(sq) }
-                }}
-                boardOrientation={chess.turn() === 'w' ? 'white' : 'black'}
-                customDarkSquareStyle={{ backgroundColor: '#769656' }}
-                customLightSquareStyle={{ backgroundColor: '#EEEED2' }}
-                customSquareStyles={customSquareStyles}
-                animationDuration={150}
-              />
-            )}
-          </div>
-
-          {/* Sidebar */}
-          <div className="w-full md:w-64 space-y-4">
-            {/* Magnus Carlsen Instructor */}
-            <div className="card border-chess-accent/30 bg-gradient-to-br from-chess-card to-chess-bg">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-chess-accent flex items-center justify-center text-white text-xs font-bold">MC</div>
-                  <div>
-                    <p className="text-chess-bright text-sm font-semibold">Magnus Carlsen</p>
-                    <p className="text-chess-text text-xs">Instructor</p>
-                  </div>
-                </div>
-                <button onClick={() => { setVoiceOn(!voiceOn); if (voiceOn) speechSynthesis.cancel() }}
-                  className="text-chess-text hover:text-chess-bright">
-                  {voiceOn ? <Volume2 size={16} /> : <VolumeX size={16} />}
-                </button>
-              </div>
-              {magnusMsg && (
-                <p className="text-chess-text text-sm italic border-t border-chess-border pt-2 mt-2">"{magnusMsg}"</p>
-              )}
-              {state === 'solving' && (
-                <button onClick={() => {
-                  const cat = puzzle?.category || ''
-                  const lines = tacticHints[cat] || magnusLines.hint
-                  const text = lines[Math.floor(Math.random() * lines.length)]
-                  if (voiceOn) { const u = new SpeechSynthesisUtterance(text); u.rate = 0.95; u.pitch = 0.9; speechSynthesis.cancel(); speechSynthesis.speak(u) }
-                  setMagnusMsg(text)
-                }}
-                  className="mt-2 w-full btn-secondary text-xs py-1.5 flex items-center justify-center gap-1">
-                  <Lightbulb size={13} /> Ask for Hint
-                </button>
-              )}
+        {/* Magnus instructor */}
+        <div className="p-4 border-b border-chess-border">
+          <div className="flex items-start gap-3">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 flex items-center justify-center text-lg flex-shrink-0 border-2 border-amber-300">
+              👨‍💼
             </div>
-            {puzzle && (
-              <div className="card">
-                <h3 className="font-bold text-chess-bright mb-1">{puzzle.title}</h3>
-                <p className="text-chess-text text-sm mb-3">{puzzle.description}</p>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-chess-text">Rating</span>
-                  <span className="font-bold text-chess-accent">{puzzle.rating}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm mt-1">
-                  <span className="text-chess-text">Category</span>
-                  <span className="text-chess-bright text-xs">{puzzle.category?.replace(/_/g,' ')}</span>
-                </div>
-                <div className="mt-3 text-sm text-chess-text">
-                  {chess.turn() === 'w' ? '♔ White' : '♚ Black'} to move
-                </div>
-              </div>
-            )}
-
-            {state === 'correct' && (
-              <div className="card border-chess-accent bg-chess-accent/10">
-                <div className="flex items-center gap-2 text-chess-accent font-semibold">
-                  <CheckCircle size={18} /> Correct!
-                </div>
-                <button onClick={loadPuzzle} className="btn-primary w-full mt-3 text-sm py-1.5">Next Puzzle</button>
-              </div>
-            )}
-            {state === 'wrong' && (
-              <div className="card border-chess-red bg-chess-red/10">
-                <div className="flex items-center gap-2 text-chess-red font-semibold">
-                  <XCircle size={18} /> Not quite!
-                </div>
-                <button onClick={loadPuzzle} className="btn-secondary w-full mt-3 text-sm py-1.5">Try Another</button>
-              </div>
-            )}
+            <div className="bg-white dark:bg-chess-bg rounded-lg p-3 shadow-sm border border-chess-border relative">
+              <div className="absolute -left-2 top-3 w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[8px] border-r-white dark:border-r-chess-bg"></div>
+              <p className="text-chess-bright text-sm">{magnusMsg}</p>
+            </div>
           </div>
+          <div className="flex items-center justify-between mt-3">
+            <span className="text-chess-text text-xs">Magnus Carlsen</span>
+            <button onClick={() => { setVoiceOn(!voiceOn); if (voiceOn) speechSynthesis.cancel() }}
+              className="text-chess-text hover:text-chess-bright">
+              {voiceOn ? <Volume2 size={14} /> : <VolumeX size={14} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Puzzle path - gamified levels */}
+        <div className="flex-1 overflow-y-auto p-4 bg-gradient-to-b from-green-900/20 to-green-950/30">
+          <div className="flex flex-col items-center gap-3">
+            {Array.from({ length: TOTAL_LEVELS }, (_, i) => {
+              const level = TOTAL_LEVELS - i
+              const isCompleted = level <= solved
+              const isCurrent = level === solved + 1
+              return (
+                <div key={level} className={`w-12 h-12 rounded-lg flex items-center justify-center font-bold text-sm border-2 transition-all
+                  ${isCompleted ? 'bg-green-500 border-green-400 text-white shadow-lg shadow-green-500/30' :
+                    isCurrent ? 'bg-chess-accent border-chess-accent text-white animate-pulse shadow-lg shadow-chess-accent/30' :
+                    'bg-chess-bg border-chess-border text-chess-text'}`}
+                  style={{ marginLeft: `${Math.sin(i * 0.8) * 40}px` }}>
+                  {isCompleted ? <CheckCircle size={18} /> : level}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Bottom stats & actions */}
+        <div className="p-4 border-t border-chess-border space-y-3">
+          {/* Rating & streak */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Trophy size={16} className="text-yellow-500" />
+              <span className="text-chess-bright font-bold">{puzzleRating}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Flame size={16} className="text-orange-500" />
+              <span className="text-chess-bright font-bold">{streak}</span>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div className="w-full bg-chess-bg rounded-full h-2.5">
+            <div className="bg-yellow-500 h-2.5 rounded-full transition-all" style={{ width: `${progressPercent}%` }}></div>
+          </div>
+
+          {/* Action buttons */}
+          {state === 'solving' && (
+            <button onClick={askHint}
+              className="w-full py-2 rounded-lg bg-chess-bg border border-chess-border text-chess-text hover:text-chess-bright hover:border-chess-accent text-sm flex items-center justify-center gap-2 transition-colors">
+              <Lightbulb size={14} /> Get a Hint
+            </button>
+          )}
+
+          {state === 'correct' && (
+            <button onClick={loadPuzzle}
+              className="w-full py-3 rounded-lg bg-green-600 hover:bg-green-500 text-white font-bold text-base transition-colors">
+              Next Puzzle →
+            </button>
+          )}
+
+          {state === 'wrong' && (
+            <button onClick={loadPuzzle}
+              className="w-full py-3 rounded-lg bg-chess-accent hover:bg-chess-accent/80 text-white font-bold text-base transition-colors">
+              Try Another
+            </button>
+          )}
+
+          {state === 'idle' && (
+            <button onClick={loadPuzzle}
+              className="w-full py-3 rounded-lg bg-green-600 hover:bg-green-500 text-white font-bold text-base transition-colors">
+              Solve Puzzles
+            </button>
+          )}
+
+          {/* Puzzle info */}
+          {puzzle && state === 'solving' && (
+            <div className="text-center">
+              <p className="text-chess-text text-xs">{puzzle.category?.replace(/_/g, ' ')} • Rating {puzzle.rating}</p>
+              <p className="text-chess-bright text-sm mt-1 font-medium">
+                {chess.turn() === 'w' ? '♔ White' : '♚ Black'} to move
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>
