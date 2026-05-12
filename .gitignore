@@ -38,3 +38,7 @@ target/
 
 ### Build output ###
 backend/src/main/resources/static/.claude/
+
+### Database ###
+backend/data/
+data/
