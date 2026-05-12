@@ -37,4 +37,4 @@ node_modules/
 target/
 
 ### Build output ###
-backend/src/main/resources/static/
+backend/src/main/resources/static/.claude/
