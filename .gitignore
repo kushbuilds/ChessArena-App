@@ -37,11 +37,12 @@ node_modules/
 target/
 
 ### Build output ###
-backend/src/main/resources/static/.claude/
 
 ### Database ###
 backend/data/
 data/
 chessarena-key.pem
-.claude/
-.kiro/
+
+### IDE/Tool configs ###
+.*cache/
+.*/settings*
