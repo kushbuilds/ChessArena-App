@@ -45,11 +45,10 @@ export default function Play() {
   const handlePlay = async () => {
     if (!isAuthenticated) { navigate('/login'); return }
     if (mode === 'computer') {
-      try {
-        const data = await gameApi.createGame({ timeControl: tc, vsComputer: true, computerLevel: level, color })
-        joinGame(data.gameId, data.yourColor || (color === 'random' ? 'white' : color), true)
-        navigate(`/game/${data.gameId}`)
-      } catch (e) { console.error(e) }
+      const selectedTc = TIME_CONTROLS.find(t => t.key === tc)
+      const baseTime = selectedTc ? parseInt(selectedTc.label) * 60 : 300
+      const chosenColor = color === 'random' ? (Math.random() > 0.5 ? 'white' : 'black') : color
+      navigate(`/computer?color=${chosenColor}&time=${baseTime}&level=${level}`)
     } else {
       setSeeking(true)
       wsService.send('/app/lobby/seek', { timeControl: tc })
@@ -135,8 +134,8 @@ export default function Play() {
               </button>
             </div>
           ) : (
-            <button onClick={handlePlay} className="btn-primary w-full py-3 text-lg font-bold">
-              {mode === 'human' ? 'Find Game' : 'Play vs Computer'}
+            <button onClick={handlePlay} className="btn-primary w-full py-4 text-lg font-bold flex items-center justify-center gap-2 shadow-lg shadow-chess-accent/20">
+              {mode === 'human' ? '⚔️ Find Game' : '▶ Start Game'}
             </button>
           )}
         </div>

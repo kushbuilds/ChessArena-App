@@ -9,10 +9,10 @@ import java.util.List;
 
 @Repository
 public interface PuzzleRepository extends JpaRepository<Puzzle, Long> {
-    @Query(value = "SELECT * FROM puzzle ORDER BY RANDOM()", nativeQuery = true)
+    @Query(value = "SELECT * FROM puzzle ORDER BY RAND()", nativeQuery = true)
     List<Puzzle> findRandom(Pageable pageable);
 
-    @Query(value = "SELECT * FROM puzzle WHERE rating BETWEEN ?1 AND ?2 ORDER BY RANDOM()", nativeQuery = true)
+    @Query(value = "SELECT * FROM puzzle WHERE rating BETWEEN ?1 AND ?2 ORDER BY RAND()", nativeQuery = true)
     List<Puzzle> findByRatingRange(int min, int max, Pageable pageable);
 
     List<Puzzle> findByCategory(Puzzle.PuzzleCategory category);

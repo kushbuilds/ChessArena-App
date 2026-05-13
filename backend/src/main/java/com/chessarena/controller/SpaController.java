@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 @Controller
 public class SpaController {
 
-    @RequestMapping(value = {"/{path:[^\\.]*}", "/{path:[^\\.]*}/{subpath:[^\\.]*}/**"})
+    @RequestMapping(value = {"/{path:(?!ws|api|h2-console)[^\\.]*}", "/{path:(?!ws|api|h2-console)[^\\.]*}/{subpath:[^\\.]*}/**"})
     public String forward() {
         return "forward:/index.html";
     }

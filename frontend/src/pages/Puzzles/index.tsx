@@ -103,10 +103,13 @@ export default function Puzzles() {
   const [magnusMsg, setMagnusMsg] = useState("It's time to get solving!")
   const [puzzleRating, setPuzzleRating] = useState(user?.puzzleRating || 1200)
 
+  const [solution, setSolution] = useState<string>('')
+
   const loadPuzzle = useCallback(async () => {
     setState('idle')
     setMoves([])
     setSelected(null)
+    setSolution('')
     try {
       const p = await puzzleApi.getRandomPuzzle()
       setPuzzle(p)
@@ -139,11 +142,27 @@ export default function Puzzles() {
         setStreak(s => s + 1)
         setSolved(s => s + 1)
         setPuzzleRating(r => r + 8)
+        setSolution('')
         if (voiceOn) setMagnusMsg(magnusSpeak('correct'))
       } else {
-        setState('wrong')
+        // Wrong move — reset board and show hint with the correct first move
+        const correctMove = resp.solution?.split(' ')[0] || ''
+        const from = correctMove.slice(0, 2)
+        const to = correctMove.slice(2, 4)
+        setSolution(correctMove)
+        // Reset to original position
+        const c = new Chess(puzzle.fen)
+        setChess(c)
+        setMoves([])
         setStreak(0)
-        if (voiceOn) setMagnusMsg(magnusSpeak('wrong'))
+        const hintText = `Wrong! The correct square is ${from} → ${to}. Try again!`
+        setMagnusMsg(hintText)
+        if (voiceOn) {
+          const u = new SpeechSynthesisUtterance("Not quite. Try again. Look at the highlighted square.")
+          u.rate = 0.88; u.pitch = 0.75
+          speechSynthesis.cancel(); speechSynthesis.speak(u)
+        }
+        // Stay in 'solving' state so player can retry
       }
     } catch {}
     return true
@@ -162,6 +181,13 @@ export default function Puzzles() {
   }
 
   const customSquareStyles: Record<string, React.CSSProperties> = {}
+  // Highlight solution hint after wrong move
+  if (solution) {
+    const hintFrom = solution.slice(0, 2)
+    const hintTo = solution.slice(2, 4)
+    customSquareStyles[hintFrom] = { backgroundColor: 'rgba(255, 170, 0, 0.6)' }
+    customSquareStyles[hintTo] = { backgroundColor: 'rgba(255, 170, 0, 0.4)' }
+  }
   if (selected) {
     customSquareStyles[selected] = { backgroundColor: 'rgba(245,246,130,0.6)' }
     const c = new Chess(chess.fen())
@@ -178,9 +204,15 @@ export default function Puzzles() {
   const progressPercent = Math.min((solved % 5) / 5 * 100, 100)
 
   return (
-    <div className="min-h-screen flex bg-chess-bg">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-chess-bg relative overflow-hidden">
+      {/* Background decoration */}
+      <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
+        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Ctext x='10' y='60' font-size='50' fill='white'%3E♞%3C/text%3E%3C/svg%3E")`, backgroundSize: '80px 80px' }} />
+      <div className="absolute top-0 left-0 w-96 h-96 bg-gradient-to-br from-chess-accent/10 to-transparent rounded-full -translate-x-1/2 -translate-y-1/2 blur-3xl" />
+      <div className="absolute bottom-0 right-0 w-96 h-96 bg-gradient-to-tl from-green-500/10 to-transparent rounded-full translate-x-1/2 translate-y-1/2 blur-3xl" />
+
       {/* Main board area */}
-      <div className="flex-1 flex items-center justify-center p-4">
+      <div className="flex-1 flex items-center justify-center p-2 md:p-4 relative z-10">
         <div className="w-full max-w-[640px]">
           {puzzle && (
             <Chessboard
@@ -200,8 +232,8 @@ export default function Puzzles() {
         </div>
       </div>
 
-      {/* Right sidebar - puzzle path */}
-      <div className="w-80 bg-chess-card border-l border-chess-border flex flex-col">
+      {/* Sidebar - below board on mobile, right side on desktop */}
+      <div className="w-full lg:w-80 bg-chess-card lg:border-l border-t lg:border-t-0 border-chess-border flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-chess-border">
           <div className="flex items-center gap-2">
@@ -230,8 +262,8 @@ export default function Puzzles() {
           </div>
         </div>
 
-        {/* Puzzle path - gamified levels */}
-        <div className="flex-1 overflow-y-auto p-4 bg-gradient-to-b from-green-900/20 to-green-950/30">
+        {/* Puzzle path - gamified levels (hidden on mobile) */}
+        <div className="hidden lg:block flex-1 overflow-y-auto p-4 bg-gradient-to-b from-green-900/20 to-green-950/30">
           <div className="flex flex-col items-center gap-3">
             {Array.from({ length: TOTAL_LEVELS }, (_, i) => {
               const level = TOTAL_LEVELS - i
@@ -271,10 +303,16 @@ export default function Puzzles() {
 
           {/* Action buttons */}
           {state === 'solving' && (
-            <button onClick={askHint}
-              className="w-full py-2 rounded-lg bg-chess-bg border border-chess-border text-chess-text hover:text-chess-bright hover:border-chess-accent text-sm flex items-center justify-center gap-2 transition-colors">
-              <Lightbulb size={14} /> Get a Hint
-            </button>
+            <div className="space-y-2">
+              <button onClick={askHint}
+                className="w-full py-2 rounded-lg bg-chess-bg border border-chess-border text-chess-text hover:text-chess-bright hover:border-chess-accent text-sm flex items-center justify-center gap-2 transition-colors">
+                <Lightbulb size={14} /> Get a Hint
+              </button>
+              <button onClick={loadPuzzle}
+                className="w-full py-2 rounded-lg bg-chess-bg border border-chess-border text-chess-text hover:text-chess-bright text-xs flex items-center justify-center gap-2 transition-colors">
+                <RefreshCw size={12} /> Skip Puzzle
+              </button>
+            </div>
           )}
 
           {state === 'correct' && (
@@ -284,12 +322,7 @@ export default function Puzzles() {
             </button>
           )}
 
-          {state === 'wrong' && (
-            <button onClick={loadPuzzle}
-              className="w-full py-3 rounded-lg bg-chess-accent hover:bg-chess-accent/80 text-white font-bold text-base transition-colors">
-              Try Another
-            </button>
-          )}
+
 
           {state === 'idle' && (
             <button onClick={loadPuzzle}
@@ -299,12 +332,16 @@ export default function Puzzles() {
           )}
 
           {/* Puzzle info */}
-          {puzzle && state === 'solving' && (
-            <div className="text-center">
-              <p className="text-chess-text text-xs">{puzzle.category?.replace(/_/g, ' ')} • Rating {puzzle.rating}</p>
-              <p className="text-chess-bright text-sm mt-1 font-medium">
-                {chess.turn() === 'w' ? '♔ White' : '♚ Black'} to move
-              </p>
+          {puzzle && (
+            <div className="text-center bg-chess-bg rounded-lg p-3 border border-chess-border">
+              <p className="text-chess-accent font-bold text-sm uppercase tracking-wide">{puzzle.category?.replace(/_/g, ' ')}</p>
+              <p className="text-chess-bright text-base font-semibold mt-1">{puzzle.title}</p>
+              <p className="text-chess-text text-xs mt-1">{puzzle.description} • Rating {puzzle.rating}</p>
+              {state === 'solving' && (
+                <p className="text-chess-bright text-sm mt-2 font-medium">
+                  {chess.turn() === 'w' ? '♔ White' : '♚ Black'} to move
+                </p>
+              )}
             </div>
           )}
         </div>

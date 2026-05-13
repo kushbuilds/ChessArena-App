@@ -28,35 +28,36 @@ export default function GamePage() {
 
   useEffect(() => {
     if (!token) return
-    wsService.connect(token, () => {
-      setConnected(true)
-      // Load game state
-      gameApi.getGame(id).then(data => {
-        const playerColor: 'white' | 'black' = data.whitePlayer === user?.username ? 'white'
-          : data.blackPlayer === user?.username ? 'black' : 'white'
-        setGameState({
-          gameId: id,
-          fen: data.currentFen,
-          pgn: data.pgn || '',
-          status: data.status,
-          turn: data.currentFen.split(' ')[1] === 'w' ? 'white' : 'black',
-          whiteTime: data.whiteTime,
-          blackTime: data.blackTime,
-          whitePlayer: data.whitePlayer,
-          blackPlayer: data.blackPlayer,
-          whiteRating: data.whiteRating,
-          blackRating: data.blackRating,
-          whiteRatingChange: 0, blackRatingChange: 0,
-          playerColor, lastMove: null,
-          legalMoves: data.legalMoves || [],
-          isInCheck: data.isInCheck || false,
-          winner: data.winner, resultReason: data.resultReason,
-          isVsComputer: data.isVsComputer,
-          timeControlLabel: data.timeControlLabel || '5+0',
+
+    // Load game state immediately (don't wait for WebSocket)
+    gameApi.getGame(id).then(data => {
+      const playerColor: 'white' | 'black' = data.whitePlayer === user?.username ? 'white'
+        : data.blackPlayer === user?.username ? 'black' : 'white'
+      setGameState({
+        gameId: id,
+        fen: data.currentFen,
+        pgn: data.pgn || '',
+        status: data.status,
+        turn: data.currentFen.split(' ')[1] === 'w' ? 'white' : 'black',
+        whiteTime: data.whiteTime,
+        blackTime: data.blackTime,
+        whitePlayer: data.whitePlayer,
+        blackPlayer: data.blackPlayer,
+        whiteRating: data.whiteRating,
+        blackRating: data.blackRating,
+        whiteRatingChange: 0, blackRatingChange: 0,
+        playerColor, lastMove: null,
+        legalMoves: data.legalMoves || [],
+        isInCheck: data.isInCheck || false,
+        winner: data.winner, resultReason: data.resultReason,
+        isVsComputer: data.isVsComputer,
+        timeControlLabel: data.timeControlLabel || '5+0',
         })
         joinGame(id, playerColor, data.isVsComputer)
       }).catch(console.error)
-    }, console.error)
+
+    // Connect WebSocket separately
+    wsService.connect(token, () => { setConnected(true) }, console.error)
     return () => { leaveGame() }
   }, [id, token])
 
