@@ -42,3 +42,4 @@ backend/src/main/resources/static/.claude/
 ### Database ###
 backend/data/
 data/
+chessarena-key.pem
