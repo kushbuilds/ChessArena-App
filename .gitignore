@@ -43,3 +43,5 @@ backend/src/main/resources/static/.claude/
 backend/data/
 data/
 chessarena-key.pem
+.claude/
+.kiro/
